@@ -88,7 +88,7 @@ func (h *Handlers) GetDepartment(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) UpdateDepartment(w http.ResponseWriter, r *http.Request) {
-	// Извлекаем ID из пути
+
 	path := strings.TrimPrefix(r.URL.Path, "/departments/")
 	idStr := strings.TrimSuffix(path, "/") // на случай лишнего слеша
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -97,7 +97,6 @@ func (h *Handlers) UpdateDepartment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Читаем тело запроса
 	var req updateDepartmentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.respondError(w, http.StatusBadRequest, "некорректный JSON")

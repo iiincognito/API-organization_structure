@@ -70,7 +70,7 @@ func (s *departmentService) CreateDepartment(ctx context.Context, name string, p
 func (s *departmentService) GetDepartment(ctx context.Context, id uint, depth int, includeEmployees bool) (*models.Department, error) {
 	dept, err := s.repo.GetDepartmentWithDepth(ctx, id, depth, includeEmployees)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) { // или ваша ошибка из repo
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrDepartmentNotFound
 		}
 		return nil, err
@@ -119,7 +119,6 @@ func (s *departmentService) DeleteDepartment(ctx context.Context, id uint, mode 
 		if reassignTo == nil {
 			return ErrInvalidReassignTarget
 		}
-		// Можно добавить проверку, существует ли reassignTo
 		return s.repo.DeleteDepartment(ctx, id, "reassign", reassignTo)
 	default:
 		return ErrInvalidDeleteMode
@@ -189,7 +188,7 @@ func trimAndValidateName(name string) string {
 }
 
 func isUniqueConstraintError(err error) bool {
-	// Для PostgreSQL часто приходит pq.Error с кодом 23505
+
 	var pqErr *pq.Error
 	if errors.As(err, &pqErr) && pqErr.Code == "23505" {
 		return true
