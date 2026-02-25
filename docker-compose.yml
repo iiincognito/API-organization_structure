@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: org-structure-db
+    environment:
+      POSTGRES_DB: org_structure
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    container_name: org-structure-api
+    ports:
+      - "8080:8080"
+    environment:
+      DB_DSN: "postgres://postgres:postgres@db:5432/org_structure?sslmode=disable"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: sh -c '
+      echo "=== Применяем миграции ===" &&
+      /usr/local/bin/goose postgres "$$DB_DSN" -dir /app/migrations up &&
+      echo "=== Миграции успешно применены ===" &&
+      echo "=== Запускаем API сервер ===" &&
+      ./api'
+
+volumes:
+  postgres_data:
