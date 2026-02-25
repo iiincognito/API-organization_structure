@@ -18,7 +18,7 @@ func NewPostgresRepository(db *gorm.DB) repository.DepartmentRepository {
 	return &postgresRepository{db: db}
 }
 
-// ====================== ПОДРАЗДЕЛЕНИЯ ======================
+// ПОДРАЗДЕЛЕНИЯ
 
 func (r *postgresRepository) CreateDepartment(ctx context.Context, dept *models.Department) error {
 	return r.db.WithContext(ctx).Create(dept).Error
@@ -101,7 +101,7 @@ func (r *postgresRepository) DeleteDepartment(ctx context.Context, id uint, mode
 
 	switch mode {
 	case "cascade":
-		// GORM + FK ON DELETE CASCADE сделает всё автоматически
+
 		if err := tx.Delete(&models.Department{}, id).Error; err != nil {
 			return err
 		}
@@ -128,13 +128,13 @@ func (r *postgresRepository) DeleteDepartment(ctx context.Context, id uint, mode
 	return tx.Commit().Error
 }
 
-// ====================== СОТРУДНИКИ ======================
+//  СОТРУДНИКИ
 
 func (r *postgresRepository) CreateEmployee(ctx context.Context, emp *models.Employee) error {
 	return r.db.WithContext(ctx).Create(emp).Error
 }
 
-// ====================== ВСПОМОГАТЕЛЬНЫЕ ======================
+//  ВСПОМОГАТЕЛЬНЫЕ
 
 func (r *postgresRepository) IsDescendant(ctx context.Context, parentID, childID uint) (bool, error) {
 	var count int64

@@ -1,62 +1,72 @@
 package main
 
 import (
-	"fmt"
 	"github.com/iiincognito/org-structure/internal/config"
+	postgres2 "github.com/iiincognito/org-structure/internal/repository/postgres"
+	"github.com/iiincognito/org-structure/internal/service"
+	"github.com/iiincognito/org-structure/internal/transport/http"
 	"github.com/joho/godotenv"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"log"
-	"net/http"
+	"log/slog"
+	"os"
+	"time"
 )
 
 func main() {
-	// Загружаем .env (если есть)
-	_ = godotenv.Load()
+	// 1. Логирование (slog — стандарт с Go 1.21+)
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
+	slog.SetDefault(logger)
 
+	slog.Info("Запуск приложения...")
+
+	// 2. Загрузка конфигурации (.env)
+	_ = godotenv.Load() // если .env есть — загрузится, если нет — ок
 	cfg := config.Load()
 
-	// Подключаемся к базе
-	dsn := cfg.DB_DSN
-	if dsn == "" {
-		log.Fatal("DB_DSN не задан в .env или переменных окружения")
+	if cfg.DB_DSN == "" {
+		slog.Error("DB_DSN не задан в .env или в переменных окружения")
+		os.Exit(1)
 	}
 
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	// 3. Подключение к базе данных (GORM)
+	db, err := gorm.Open(postgres.Open(cfg.DB_DSN), &gorm.Config{})
 	if err != nil {
-		log.Fatalf("Не удалось подключиться к базе: %v", err)
+		slog.Error("Не удалось подключиться к PostgreSQL", "error", err)
+		os.Exit(1)
 	}
 
-	// Простая проверка подключения
 	sqlDB, _ := db.DB()
+	sqlDB.SetMaxOpenConns(25)
+	sqlDB.SetMaxIdleConns(25)
+	sqlDB.SetConnMaxLifetime(5 * time.Minute)
+
 	if err := sqlDB.Ping(); err != nil {
-		log.Fatalf("Ping к базе не прошёл: %v", err)
+		slog.Error("Ping к базе данных не удался", "error", err)
+		os.Exit(1)
 	}
 
-	log.Println("Успешно подключились к PostgreSQL")
+	slog.Info("Успешно подключились к PostgreSQL")
 
-	// Минимальный HTTP-сервер
-	mux := http.NewServeMux()
+	// 4. Инициализация репозитория
+	repo := postgres2.NewPostgresRepository(db)
 
-	// Простой health-check
-	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "OK")
-	})
+	// 5. Инициализация сервиса (бизнес-логика)
+	deptService := service.NewDepartmentService(repo)
 
-	// Пока заглушка для будущего эндпоинта
-	mux.HandleFunc("GET /api/v1/departments", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, `{"message": "Скоро здесь будет список подразделений"}`)
-	})
+	// 6. Инициализация HTTP-сервера (transport/http)
+	httpServer := http.NewServer(
+		cfg.Port,
+		deptService,
+		logger,
+	)
 
-	port := cfg.Port
-	if port == "" {
-		port = "8080"
-	}
-
-	log.Printf("Сервер запускается на :%s", port)
-	if err := http.ListenAndServe(":"+port, mux); err != nil {
-		log.Fatalf("Сервер упал: %v", err)
+	// 7. Запуск сервера (с graceful shutdown внутри)
+	slog.Info("Запускаем HTTP-сервер...")
+	if err := httpServer.Start(); err != nil {
+		slog.Error("HTTP-сервер завершился с ошибкой", "error", err)
+		os.Exit(1)
 	}
 }
